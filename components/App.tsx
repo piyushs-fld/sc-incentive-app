@@ -34,6 +34,8 @@ export default function App() {
   const [modal, setModal] = useState<ModalState>(null);
   const [toast, setToast] = useState<{ m: string; e: boolean } | null>(null);
   const [jsonText, setJsonText] = useState("");
+  const [calcSavedAt, setCalcSavedAt] = useState<string | null>(null);
+  const [simSavedAt, setSimSavedAt] = useState<string | null>(null);
   const toastT = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* Initial load: centrally saved configuration, falling back to DEF. */
@@ -48,6 +50,35 @@ export default function App() {
       } catch {
         /* Store unreachable — keep DEF so the UI still works. */
       }
+    })();
+    return () => { cancelled = true };
+  }, []);
+
+  /* Last explicitly saved Calculator / Simulator inputs. Fetched once on mount;
+     absent or unreachable leaves the existing defaults in place. Only input
+     state is stored — every result recalculates from the active Config. */
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/calculator-state", { cache: "no-store" });
+        if (!res.ok) return;
+        const d = (await res.json()) as { state?: { deal: DealState; legacyIn: LegacyInputs } | null; updatedAt?: string | null };
+        if (cancelled || !d || !d.state) return;
+        setDeal(d.state.deal);
+        setLegacyIn(d.state.legacyIn);
+        setCalcSavedAt(d.updatedAt ?? null);
+      } catch { /* keep defaults */ }
+    })();
+    (async () => {
+      try {
+        const res = await fetch("/api/simulator-state", { cache: "no-store" });
+        if (!res.ok) return;
+        const d = (await res.json()) as { state?: SimState | null; updatedAt?: string | null };
+        if (cancelled || !d || !d.state) return;
+        setSim(d.state);
+        setSimSavedAt(d.updatedAt ?? null);
+      } catch { /* keep defaults */ }
     })();
     return () => { cancelled = true };
   }, []);
@@ -81,6 +112,35 @@ export default function App() {
       showToast("Could not save configuration", true);
     }
   }, [cfg, showToast]);
+
+  /* Explicit saves only — never on keystroke. */
+  const onSaveCalc = useCallback(async () => {
+    try {
+      const res = await fetch("/api/calculator-state", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ state: { deal, legacyIn } }),
+      });
+      const d = (await res.json()) as { updatedAt?: string; error?: string };
+      if (!res.ok || !d.updatedAt) { showToast(d.error || "Could not save calculation", true); return }
+      setCalcSavedAt(d.updatedAt);
+      showToast("Calculation saved");
+    } catch { showToast("Could not save calculation", true) }
+  }, [deal, legacyIn, showToast]);
+
+  const onSaveSim = useCallback(async () => {
+    try {
+      const res = await fetch("/api/simulator-state", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ state: sim }),
+      });
+      const d = (await res.json()) as { updatedAt?: string; error?: string };
+      if (!res.ok || !d.updatedAt) { showToast(d.error || "Could not save scenario", true); return }
+      setSimSavedAt(d.updatedAt);
+      showToast("Scenario saved");
+    } catch { showToast("Could not save scenario", true) }
+  }, [sim, showToast]);
 
   const openModal = (t: "reset" | "export" | "import" | "acts-fc" | "acts-ta") => {
     if (t === "reset") setModal({ t: "reset", title: "Reset to Defaults" });
@@ -177,10 +237,11 @@ export default function App() {
         <div className="wrap">
           {page === "calc" && (
             <Calculator cfg={cfg} deal={deal} setDeal={setDeal} legacyIn={legacyIn} setLegacyIn={setLegacyIn}
-              open={open} setOpen={setOpen} goAdmin={(s) => { setAdm(s); go("admin") }} />
+              open={open} setOpen={setOpen} goAdmin={(s) => { setAdm(s); go("admin") }}
+              onSaveState={onSaveCalc} savedAt={calcSavedAt} />
           )}
           {page === "policy" && <Policy cfg={cfg} />}
-          {page === "sim" && <Simulator cfg={cfg} sim={sim} setSim={setSim} />}
+          {page === "sim" && <Simulator cfg={cfg} sim={sim} setSim={setSim} onSaveState={onSaveSim} savedAt={simSavedAt} />}
           {page === "admin" && (
             <Admin cfg={cfg} setCfg={setCfg} section={adm} setSection={setAdm}
               fcTier={fcTier} setFcTier={setFcTier} taTier={taTier} setTaTier={setTaTier}

@@ -4,9 +4,11 @@ import { calcScenario, gc, guardStatus } from "@/lib/calc";
 import { L, P } from "@/lib/format";
 import type { Config, NewPolicyResult, SimState } from "@/types";
 import { ActivityRow, NumberField, Panel, Segmented, Tag } from "@/components/ui";
+import { fmtSaved } from "@/components/Calculator";
 
-export default function Simulator({ cfg, sim, setSim }: {
+export default function Simulator({ cfg, sim, setSim, onSaveState, savedAt }: {
   cfg: Config; sim: SimState; setSim: (s: SimState) => void;
+  onSaveState: () => void | Promise<void>; savedAt: string | null;
 }) {
   const res = calcScenario(sim.mrr, sim.setup, sim.fcDone, sim.tag, cfg);
   const toggle = (arr: string[], id: string) => arr.indexOf(id) > -1 ? arr.filter((x) => x !== id) : arr.concat([id]);
@@ -28,8 +30,18 @@ export default function Simulator({ cfg, sim, setSim }: {
 
   return (
     <>
-      <div className="pt"><h1>Compare Policy Economics</h1>
-        <p>How the same opportunity behaves across Gold, Platinum and TW under the proposed framework. Uses the identical calculation engine as the Calculator.</p></div>
+      <div className="pt">
+        <div className="row sp">
+          <div>
+            <h1>Compare Policy Economics</h1>
+            <p>How the same opportunity behaves across Gold, Platinum and TW under the proposed framework. Uses the identical calculation engine as the Calculator.</p>
+          </div>
+          <div className="row">
+            {savedAt && <span className="xs mut">Last saved: {fmtSaved(savedAt)}</span>}
+            <button className="bn gh s" onClick={() => onSaveState()}>Save Scenario</button>
+          </div>
+        </div>
+      </div>
 
       <Panel title="Assumptions">
         <div className="g g3">

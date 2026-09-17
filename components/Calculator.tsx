@@ -11,6 +11,12 @@ import {
 
 const R = (x: number) => L(x);
 
+/* Rendered only after the client has loaded saved state, so it cannot affect SSR. */
+export function fmtSaved(iso: string): string {
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? "\u2014" : d.toLocaleString();
+}
+
 function Trace({ res }: { res: NewPolicyResult }) {
   const t = res.tier;
   const lines: React.ReactNode[] = [];
@@ -48,12 +54,13 @@ function PpChg({ d }: { d: number }) {
 }
 
 export default function Calculator({
-  cfg, deal, setDeal, legacyIn, setLegacyIn, open, setOpen, goAdmin,
+  cfg, deal, setDeal, legacyIn, setLegacyIn, open, setOpen, goAdmin, onSaveState, savedAt,
 }: {
   cfg: Config; deal: DealState; setDeal: (d: DealState) => void;
   legacyIn: LegacyInputs; setLegacyIn: (l: LegacyInputs) => void;
   open: Record<string, boolean>; setOpen: (o: Record<string, boolean>) => void;
   goAdmin: (section: "fc") => void;
+  onSaveState: () => void | Promise<void>; savedAt: string | null;
 }) {
   const t = cfg.tiers[deal.tier];
   const R2 = calcNewPolicy(deal, cfg);
@@ -69,8 +76,18 @@ export default function Calculator({
 
   return (
     <>
-      <div className="pt"><h1>Calculate Incentive</h1>
-        <p>Configure the opportunity and involvement to calculate the proposed payout.</p></div>
+      <div className="pt">
+        <div className="row sp">
+          <div>
+            <h1>Calculate Incentive</h1>
+            <p>Configure the opportunity and involvement to calculate the proposed payout.</p>
+          </div>
+          <div className="row">
+            {savedAt && <span className="xs mut">Last saved: {fmtSaved(savedAt)}</span>}
+            <button className="bn gh s" onClick={() => onSaveState()}>Save Calculation</button>
+          </div>
+        </div>
+      </div>
 
       <div className="cols">
         <div>
